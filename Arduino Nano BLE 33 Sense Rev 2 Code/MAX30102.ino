@@ -1,9 +1,14 @@
 #include <MAX30105.h>
 #include <heartRate.h>
 #include <spo2_algorithm.h>
+#include <SparkFun_TMP117.h>
+#include <SparkFun_TMP117_Registers.h>
 
 // Initialize MAX30105 sensor
 MAX30105 particleSensor;
+
+// Initialize TMP117 sensor
+TMP117 sensor;
 
 // Variables for SpO2 and Heart Rate
 uint32_t irBuffer[100];      // Infrared LED sensor data
@@ -19,18 +24,24 @@ void setup() {
   // Initialize serial communication for debugging
   Serial.begin(115200);
 
-  // Initialize the MAX30105 sensor
-  if (!particleSensor.begin(Wire, I2C_SPEED_STANDARD)) {
+  // Initialize MAX30105 sensor
+  if (!particleSensor.begin()) {
     Serial.println("Sensor error! Check wiring.");
     while (1); // Loop forever if sensor is not found
   }
+  particleSensor.setup(); // Configure sensor with default settings
+  Serial.println("MAX30105 Initialized.");
 
-  particleSensor.setup();     // Configure sensor with default settings
-  Serial.println("Sensor initialized. Starting readings...");
+  // Initialize TMP117 sensor
+  if (!sensor.begin()) {
+    Serial.println("TMP117 not detected! Check wiring.");
+    while (1);
+  }
+  Serial.println("TMP117 Initialized. Starting readings...");
 }
 
 void loop() {
-  // Read data from the sensor into buffers
+  // Read data from the MAX30105 sensor into buffers
   for (int i = 0; i < bufferLength; i++) {
     while (!particleSensor.available()) // Wait until sensor has new data
       particleSensor.check();           // Check for new data
@@ -43,31 +54,19 @@ void loop() {
   // Calculate heart rate and SpO2 using algorithms
   maxim_heart_rate_and_oxygen_saturation(irBuffer, bufferLength, redBuffer, &spo2, &validSpO2, &heartRate, &validHeartRate);
 
-  // Read temperature from the sensor
-  float temperature = particleSensor.readTemperature();
+  // Read temperature from TMP117 sensor
+  float temperature = sensor.readTempC();
 
   // Print results to the Serial Monitor
-  if (validHeartRate) {
-    Serial.print("Heart Rate: ");
-    Serial.print(heartRate);
-    Serial.print(" bpm");
-  } else {
-    Serial.print("Heart Rate: Invalid");
-  }
+  Serial.print("Heart Rate: ");
+  if (validHeartRate) Serial.print(heartRate);
+  else Serial.print("Invalid");
 
-  Serial.print(" | ");
+  Serial.print(" bpm | SpO2: ");
+  if (validSpO2) Serial.print(spo2);
+  else Serial.print("Invalid");
 
-  if (validSpO2) {
-    Serial.print("SpO2: ");
-    Serial.print(spo2);
-    Serial.print("%");
-  } else {
-    Serial.print("SpO2: Invalid");
-  }
-
-  Serial.print(" | ");
-
-  Serial.print("Temperature: ");
+  Serial.print("% | Temperature: ");
   Serial.print(temperature);
   Serial.println(" °C");
 
